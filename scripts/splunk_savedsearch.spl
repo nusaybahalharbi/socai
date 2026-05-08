@@ -1,0 +1,30 @@
+; =====================================================================
+; Splunk saved-search SPL the connector pulls from.
+; Create this in Splunk: Settings → Searches, reports, and alerts → New Saved Search
+; OR paste it into the SOC AI connector by overriding DEFAULT_SEARCH.
+;
+; Covers: failed/successful logons (Security 4624/4625), Sysmon process_create
+; (event 1), network_connection (3), file_create (11), registry (13).
+; Aggregates failed logons per (user,src) so the AI sees a real count.
+; =====================================================================
+
+search index=main earliest=-5m
+  (sourcetype="WinEventLog:Security" (EventCode=4625 OR EventCode=4624))
+  OR sourcetype="XmlWinEventLog:Microsoft-Windows-Sysmon/Operational"
+| eval
+    src_ip       = coalesce(IpAddress, src_ip),
+    user         = coalesce(TargetUserName, User, user),
+    host         = coalesce(Computer, host),
+    process_name = coalesce(Image, ProcessName),
+    command_line = coalesce(CommandLine, command_line)
+| stats
+    count                                          AS count,
+    latest(_raw)                                   AS _raw,
+    latest(_time)                                  AS _time,
+    latest(EventCode)                              AS EventCode,
+    latest(src_ip)                                 AS src_ip,
+    latest(host)                                   AS host,
+    latest(process_name)                           AS process_name,
+    latest(command_line)                           AS command_line
+  BY user, EventCode
+| eval _serial = user."-".EventCode."-".tostring(_time)

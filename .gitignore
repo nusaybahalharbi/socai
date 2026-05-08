@@ -1,0 +1,17 @@
+.env
+.env.local
+*.pyc
+__pycache__/
+.venv/
+venv/
+node_modules/
+dist/
+.vite/
+.coverage
+.pytest_cache/
+.DS_Store
+*.log
+ml/models/*.joblib
+backend/ml/models/*.joblib
+.idea/
+.vscode/

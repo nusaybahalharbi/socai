@@ -1,0 +1,66 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: socai-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: soc
+      POSTGRES_PASSWORD: soc
+      POSTGRES_DB: socai
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U soc -d socai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: socai-backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: development
+      DEBUG: "true"
+      DATA_MODE: ${DATA_MODE:-mock}
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production-please-please}
+      DATABASE_URL: postgresql+psycopg2://soc:soc@db:5432/socai
+      CORS_ORIGINS: "http://localhost:5173,http://localhost:3000,http://frontend:5173"
+      # Splunk (used when DATA_MODE=splunk)
+      SPLUNK_HOST: ${SPLUNK_HOST:-host.docker.internal}
+      SPLUNK_PORT: ${SPLUNK_PORT:-8089}
+      SPLUNK_USERNAME: ${SPLUNK_USERNAME:-admin}
+      SPLUNK_PASSWORD: ${SPLUNK_PASSWORD:-changeme}
+      SPLUNK_SCHEME: ${SPLUNK_SCHEME:-https}
+      SPLUNK_INDEX: ${SPLUNK_INDEX:-main}
+      SPLUNK_POLL_INTERVAL_SECONDS: ${SPLUNK_POLL_INTERVAL_SECONDS:-60}
+      SPLUNK_VERIFY_SSL: ${SPLUNK_VERIFY_SSL:-false}
+      MOCK_ALERT_INTERVAL_SECONDS: ${MOCK_ALERT_INTERVAL_SECONDS:-30}
+      MOCK_ALERTS_PER_BATCH: ${MOCK_ALERTS_PER_BATCH:-5}
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: socai-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "5173:5173"
+
+volumes:
+  db_data:
